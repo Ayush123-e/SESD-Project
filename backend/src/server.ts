@@ -21,19 +21,17 @@ dbInstance.connect().then(async () => {
   // AUTO-SEED: Enhanced Catalog & Member Experience Hydration
   try {
     const userCount = await User.countDocuments();
-    if (userCount === 0) {
-      console.log('--- AUTO-SEEDING: Initializing Enterprise Identity & Catalog matrix ---');
+    const bookCount = await Book.countDocuments();
+
+    // 1. FULL INITIAL SEED (If database is completely empty)
+    if (userCount === 0 || bookCount === 0) {
+      console.log('--- AUTO-SEEDING: Hydrating blank catalog and identity matrix ---');
       
-      // 1. Books
       const seededBooks = await Book.insertMany(INITIAL_BOOKS);
-      
-      // 2. Spaces
       const seededSpaces = await StudySpace.insertMany(INITIAL_STUDY_SPACES);
-      
-      // 3. User Accounts (Password: password123)
       const hashedPassword = await bcrypt.hash('password123', 10);
       
-      const admin = await User.create({
+      await User.create({
         name: 'Library Director',
         email: 'admin@example.com',
         password: hashedPassword,
@@ -41,59 +39,78 @@ dbInstance.connect().then(async () => {
         membershipTier: 'Premium'
       });
 
-      const member = await User.create({
+      await User.create({
         name: 'Alex Rivera',
         email: 'member@example.com',
         password: hashedPassword,
         role: 'MEMBER',
-        membershipTier: 'Premium',
-        totalPendingFines: 25.50
+        membershipTier: 'Premium'
       });
-
-      // 4. Active Issues (Demo)
-      const borrow1 = await BorrowingRecord.create({
-        user: member._id,
-        book: seededBooks[0]._id,
-        borrowDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
-        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Due in 7 days
-        status: 'BORROWED'
-      });
-
-      const borrow2 = await BorrowingRecord.create({
-        user: member._id,
-        book: seededBooks[1]._id,
-        borrowDate: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000), // 20 days ago
-        dueDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),  // Overdue by 2 days
-        status: 'OVERDUE'
-      });
-
-      // 5. Dues Trace (Demo)
-      await Fine.create({
-        borrowRecordId: borrow2._id,
-        amount: 25.50,
-        isPaid: false
-      });
-
-      // 6. Locked Slots / Waitlist (Demo)
-      await WaitlistRecord.create({
-        user: member._id,
-        book: seededBooks[4]._id, // 5th book (availableQuantity: 0 in my seed logic?)
-        status: 'PENDING'
-      });
-
-      // 7. Reservations (Demo)
-      await SeatBooking.create({
-        user: member._id,
-        space: seededSpaces[2]._id, // Strategic Collaborator Suite
-        startTime: new Date(Date.now() + 2 * 60 * 60 * 1000), // Starts in 2 hours
-        endTime: new Date(Date.now() + 4 * 60 * 60 * 1000),   // Ends in 4 hours
-        status: 'active'
-      });
-
-      console.log('--- SUCCESS: Multi-Collections Hydrated Seamlessly ---');
-    } else {
-      console.log('--- SEED SKIP: Identity Cluster Detected ---');
+      console.log('--- SUCCESS: Core foundations established ---');
     }
+
+    // 2. ITERATIVE HYDRATION (Ensure all members have demo data for the UX walkthrough)
+    const members = await User.find({ role: 'MEMBER' });
+    const availableBooks = await Book.find().limit(20);
+    const availableSpaces = await StudySpace.find().limit(5);
+
+    console.log(`--- SYNC CHECK: Found ${members.length} members to verify ---`);
+
+    for (const member of members) {
+      const hasRecords = await BorrowingRecord.exists({ user: member._id });
+      if (!hasRecords && availableBooks.length > 0) {
+        console.log(`--- HYDRATING DEMO DATA: ${member.name} (${member.email}) ---`);
+        
+        // Ensure some books are available for borrowing logic natively
+        member.totalPendingFines = 50.75;
+        await member.save();
+
+        // Issue 1: Active
+        await BorrowingRecord.create({
+          user: member._id,
+          book: availableBooks[0]._id,
+          borrowDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+          dueDate: new Date(Date.now() + 11 * 24 * 60 * 60 * 1000),
+          status: 'BORROWED'
+        });
+
+        // Issue 2: Overdue
+        const overdueRecord = await BorrowingRecord.create({
+          user: member._id,
+          book: availableBooks[1]._id,
+          borrowDate: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000),
+          dueDate: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+          status: 'OVERDUE'
+        });
+
+        // Dues Trace
+        await Fine.create({
+          borrowRecordId: overdueRecord._id,
+          amount: 50.75,
+          isPaid: false
+        });
+
+        // Locked Slots
+        if (availableBooks.length > 5) {
+          await WaitlistRecord.create({
+            user: member._id,
+            book: availableBooks[5]._id,
+            status: 'PENDING'
+          });
+        }
+
+        // Reservations
+        if (availableSpaces.length > 0) {
+          await SeatBooking.create({
+            user: member._id,
+            space: availableSpaces[0]._id,
+            startTime: new Date(Date.now() + 2 * 60 * 60 * 1000),
+            endTime: new Date(Date.now() + 4 * 60 * 60 * 1000)
+          });
+        }
+      }
+    }
+    console.log('--- SYSTEM: All identity and catalog clusters synchronized ---');
   } catch (seedErr: any) {
     console.error('--- SEED FAILURE: Demo Payload Crash ---', seedErr.message);
   }
