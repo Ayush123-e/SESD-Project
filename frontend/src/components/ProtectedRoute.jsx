@@ -19,7 +19,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   }
 
   // Cross-reference implicit bounds checking against component definitions
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
+  if (allowedRoles && !allowedRoles.includes(activeUser.role)) {
     return <Navigate to="/unauthorized" replace />;
   }
 

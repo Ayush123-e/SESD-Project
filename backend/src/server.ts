@@ -95,7 +95,7 @@ dbInstance.connect().then(async () => {
           await WaitlistRecord.create({
             user: member._id,
             book: availableBooks[5]._id,
-            status: 'PENDING'
+            status: 'pending'
           });
         }
 
